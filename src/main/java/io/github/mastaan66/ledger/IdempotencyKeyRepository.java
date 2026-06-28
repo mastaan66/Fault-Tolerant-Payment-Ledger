@@ -1,4 +1,4 @@
-package com.stripe.ledger;
+package io.github.mastaan66.ledger;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
