@@ -12,6 +12,8 @@ All notable changes will be documented here. The project follows
 - Structured problem-detail API errors and stronger request validation.
 - Concurrent duplicate-request, rollback, replay, and API integration tests.
 - PostgreSQL Docker Compose profile and application health endpoint.
+- Paginated account activity with direction filters, lifetime totals, stable
+  ordering, query indexes, and structured query-validation errors.
 - CI, dependency updates, license, contribution, security, architecture, API,
   and roadmap documentation.
 

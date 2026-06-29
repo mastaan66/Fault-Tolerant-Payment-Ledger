@@ -9,10 +9,20 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "transfers")
+@Table(
+        name = "transfers",
+        indexes = {
+            @Index(
+                    name = "idx_transfers_from_activity",
+                    columnList = "from_account, created_at, id"),
+            @Index(
+                    name = "idx_transfers_to_activity",
+                    columnList = "to_account, created_at, id")
+        })
 public class TransferRecord {
 
     @Id

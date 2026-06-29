@@ -9,6 +9,9 @@ import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
 
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -97,6 +100,49 @@ public class LedgerService {
                 .orElseThrow(() -> new AccountNotFoundException(accountNumber));
     }
 
+    @Transactional(readOnly = true)
+    public AccountActivityResponse findAccountActivity(
+            String accountNumber,
+            TransferDirection direction,
+            int page,
+            int size) {
+        AccountResponse account = findAccount(accountNumber);
+        PageRequest pageRequest = PageRequest.of(
+                page,
+                size,
+                Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
+
+        Page<TransferRecord> transfers = switch (direction) {
+            case ALL -> transferRepository.findByFromAccountOrToAccount(
+                    accountNumber, accountNumber, pageRequest);
+            case INCOMING -> transferRepository.findByToAccount(accountNumber, pageRequest);
+            case OUTGOING -> transferRepository.findByFromAccount(accountNumber, pageRequest);
+        };
+
+        TransferRepository.TransferTotals incoming =
+                transferRepository.summarizeIncoming(accountNumber);
+        TransferRepository.TransferTotals outgoing =
+                transferRepository.summarizeOutgoing(accountNumber);
+
+        var summary = new AccountActivityResponse.ActivitySummary(
+                incoming.getTransferCount(),
+                amountOrZero(incoming.getTotalAmount()),
+                outgoing.getTransferCount(),
+                amountOrZero(outgoing.getTotalAmount()));
+        var metadata = new AccountActivityResponse.PageMetadata(
+                transfers.getNumber(),
+                transfers.getSize(),
+                transfers.getTotalElements(),
+                transfers.getTotalPages(),
+                transfers.isFirst(),
+                transfers.isLast());
+        var entries = transfers.getContent().stream()
+                .map(transfer -> AccountActivityEntry.from(transfer, accountNumber))
+                .toList();
+
+        return new AccountActivityResponse(account, summary, direction, entries, metadata);
+    }
+
     private TransferResult replay(IdempotencyKey existing, String fingerprint) {
         if (!MessageDigest.isEqual(
                 existing.getRequestFingerprint().getBytes(StandardCharsets.US_ASCII),
@@ -115,6 +161,10 @@ public class LedgerService {
     private Account findAccountForUpdate(String accountNumber) {
         return accountRepository.findByAccountNumberForUpdate(accountNumber)
                 .orElseThrow(() -> new AccountNotFoundException(accountNumber));
+    }
+
+    private BigDecimal amountOrZero(BigDecimal amount) {
+        return amount == null ? new BigDecimal("0.00") : amount.setScale(2);
     }
 
     private void validateTransfer(TransferRequest request) {

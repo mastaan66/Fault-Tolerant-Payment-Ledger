@@ -165,6 +165,98 @@ class LedgerApplicationTests {
     }
 
     @Test
+    void returnsPaginatedAccountActivityWithLifetimeTotals() throws Exception {
+        postTransfer("activity-1", "AC100", "AC200", "100.00")
+                .andExpect(status().isCreated());
+        postTransfer("activity-2", "AC200", "AC100", "25.00")
+                .andExpect(status().isCreated());
+        postTransfer("activity-3", "AC100", "AC200", "40.00")
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/ledger/accounts/AC100/activity")
+                        .queryParam("size", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.account.accountNumber").value("AC100"))
+                .andExpect(jsonPath("$.account.balance").value(4885.00))
+                .andExpect(jsonPath("$.summary.incomingCount").value(1))
+                .andExpect(jsonPath("$.summary.incomingAmount").value(25.00))
+                .andExpect(jsonPath("$.summary.outgoingCount").value(2))
+                .andExpect(jsonPath("$.summary.outgoingAmount").value(140.00))
+                .andExpect(jsonPath("$.direction").value("ALL"))
+                .andExpect(jsonPath("$.entries.length()").value(2))
+                .andExpect(jsonPath("$.entries[0].direction").value("OUTGOING"))
+                .andExpect(jsonPath("$.entries[0].counterpartyAccount").value("AC200"))
+                .andExpect(jsonPath("$.entries[0].amount").value(40.00))
+                .andExpect(jsonPath("$.entries[1].direction").value("INCOMING"))
+                .andExpect(jsonPath("$.entries[1].amount").value(25.00))
+                .andExpect(jsonPath("$.page.number").value(0))
+                .andExpect(jsonPath("$.page.size").value(2))
+                .andExpect(jsonPath("$.page.totalElements").value(3))
+                .andExpect(jsonPath("$.page.totalPages").value(2))
+                .andExpect(jsonPath("$.page.first").value(true))
+                .andExpect(jsonPath("$.page.last").value(false));
+    }
+
+    @Test
+    void filtersAndPagesAccountActivity() throws Exception {
+        postTransfer("filter-1", "AC100", "AC200", "10.00")
+                .andExpect(status().isCreated());
+        postTransfer("filter-2", "AC200", "AC100", "20.00")
+                .andExpect(status().isCreated());
+        postTransfer("filter-3", "AC100", "AC200", "30.00")
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/ledger/accounts/AC100/activity")
+                        .queryParam("direction", "INCOMING"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.direction").value("INCOMING"))
+                .andExpect(jsonPath("$.entries.length()").value(1))
+                .andExpect(jsonPath("$.entries[0].direction").value("INCOMING"))
+                .andExpect(jsonPath("$.entries[0].amount").value(20.00))
+                .andExpect(jsonPath("$.page.totalElements").value(1));
+
+        mockMvc.perform(get("/api/ledger/accounts/AC100/activity")
+                        .queryParam("direction", "OUTGOING")
+                        .queryParam("page", "1")
+                        .queryParam("size", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.entries.length()").value(1))
+                .andExpect(jsonPath("$.entries[0].amount").value(10.00))
+                .andExpect(jsonPath("$.page.number").value(1))
+                .andExpect(jsonPath("$.page.totalElements").value(2))
+                .andExpect(jsonPath("$.page.last").value(true));
+    }
+
+    @Test
+    void validatesAccountActivityQueriesAndMissingAccounts() throws Exception {
+        mockMvc.perform(get("/api/ledger/accounts/AC100/activity"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary.incomingCount").value(0))
+                .andExpect(jsonPath("$.summary.incomingAmount").value(0.00))
+                .andExpect(jsonPath("$.summary.outgoingCount").value(0))
+                .andExpect(jsonPath("$.summary.outgoingAmount").value(0.00))
+                .andExpect(jsonPath("$.entries").isEmpty())
+                .andExpect(jsonPath("$.page.totalElements").value(0));
+
+        mockMvc.perform(get("/api/ledger/accounts/UNKNOWN/activity"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value("Account not found: UNKNOWN"));
+
+        mockMvc.perform(get("/api/ledger/accounts/AC100/activity")
+                        .queryParam("size", "101"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Request validation failed"))
+                .andExpect(jsonPath("$.errors.size").exists());
+
+        mockMvc.perform(get("/api/ledger/accounts/AC100/activity")
+                        .queryParam("direction", "SIDEWAYS"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Request validation failed"))
+                .andExpect(jsonPath("$.errors.direction").value(
+                        "has an unsupported value"));
+    }
+
+    @Test
     void serializesConcurrentRequestsSharingAnIdempotencyKey() {
         assertTimeoutPreemptively(Duration.ofSeconds(10), () -> {
             CountDownLatch start = new CountDownLatch(1);

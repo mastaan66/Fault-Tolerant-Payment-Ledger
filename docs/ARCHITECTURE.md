@@ -15,7 +15,7 @@ is the database transaction, not the HTTP process.
 | `LedgerService` | Transaction boundary and transfer business rules |
 | `AccountRepository` | Normal reads and explicit write-locked account reads |
 | `IdempotencyKeyRepository` | Durable request claim and fingerprint |
-| `TransferRepository` | Completed transfer audit records |
+| `TransferRepository` | Completed transfer records, activity pages, and totals |
 
 ## Transfer sequence
 
@@ -88,6 +88,9 @@ transfers
   status
   created_at
 
+  indexes: (from_account, created_at, id)
+           (to_account, created_at, id)
+
 idempotency_keys
   request_key (primary key)
   request_fingerprint
@@ -97,6 +100,12 @@ idempotency_keys
 
 Account numbers in transfer records are snapshots, which keeps the audit record
 readable if richer account metadata is introduced later.
+
+The account activity endpoint reads this audit trail directly. It returns
+incoming/outgoing lifetime aggregates and a bounded, deterministic page ordered
+by creation time and ID. It deliberately does not calculate historical running
+balances: those should come from the future immutable journal rather than from a
+mutable balance projection.
 
 ## Deliberate limitations
 

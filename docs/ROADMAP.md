@@ -56,7 +56,8 @@ querying application tables by hand.
 ## Phase 5 — developer and product surface
 
 - [ ] Publish an OpenAPI specification and generated examples.
-- [ ] Add pagination/filtering for transfers and account history.
+- [x] Add paginated, direction-filtered account history with lifetime totals.
+- [ ] Add global transfer browsing and filtering.
 - [ ] Add administrative account creation with explicit opening journal entries.
 - [ ] Add webhook/outbox delivery for committed transfer events.
 - [ ] Publish versioned container images and signed release artifacts.

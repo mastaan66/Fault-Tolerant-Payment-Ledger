@@ -22,6 +22,7 @@ reliability patterns without claiming to be a bank-ready general ledger.
 - Accounts are locked in stable lexical order to reduce deadlock risk.
 - Failed transfers roll back completely and can be retried with the same key.
 - API errors use RFC 9457-style `application/problem+json` responses.
+- Account activity exposes paginated incoming/outgoing entries and lifetime totals.
 - Integration tests exercise real HTTP, JPA, rollback, and concurrency behavior.
 
 ## What it does not promise
@@ -88,6 +89,7 @@ Inspect state:
 
 ```bash
 curl http://localhost:8081/api/ledger/accounts/AC100
+curl 'http://localhost:8081/api/ledger/accounts/AC100/activity?direction=OUTGOING&size=10'
 curl http://localhost:8081/actuator/health
 ```
 
@@ -114,6 +116,7 @@ development. Stop and remove its data with `docker compose down --volumes`.
 | `POST` | `/api/ledger/transfers` | Create or replay an idempotent transfer |
 | `GET` | `/api/ledger/transfers/{id}` | Fetch a completed transfer |
 | `GET` | `/api/ledger/accounts/{number}` | Read the current balance projection |
+| `GET` | `/api/ledger/accounts/{number}/activity` | Page and filter account activity |
 | `GET` | `/actuator/health` | Liveness/readiness signal |
 
 `POST /transfers` requires an `Idempotency-Key` header of 1–100 characters.
@@ -141,8 +144,9 @@ different fingerprint is rejected.
 ```
 
 The test suite covers successful transfers, exact replay, conflicting key reuse,
-rollback after insufficient funds, invalid requests, missing accounts, and two
-concurrent requests racing on the same key.
+rollback after insufficient funds, invalid requests, missing accounts, account
+activity totals/filtering/pagination, and two concurrent requests racing on the
+same key.
 
 ## Contributing
 

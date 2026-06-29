@@ -75,6 +75,62 @@ Returns the same transfer representation, or `404` when no record exists.
 The balance is a current projection and the version is intended for diagnostics,
 not as a public concurrency contract.
 
+## Fetch account activity
+
+`GET /api/ledger/accounts/{accountNumber}/activity`
+
+Optional query parameters:
+
+| Parameter | Default | Rules |
+| --- | --- | --- |
+| `direction` | `ALL` | `ALL`, `INCOMING`, or `OUTGOING` |
+| `page` | `0` | Zero-based, non-negative page number |
+| `size` | `20` | Between 1 and 100 entries |
+
+Entries are ordered by creation time descending and then transfer ID descending,
+so requests have a deterministic newest-first order. The lifetime summary is for
+all account activity and is not narrowed by the direction filter.
+
+```json
+{
+  "account": {
+    "accountNumber": "AC100",
+    "balance": 4875.00,
+    "version": 1
+  },
+  "summary": {
+    "incomingCount": 1,
+    "incomingAmount": 25.00,
+    "outgoingCount": 2,
+    "outgoingAmount": 150.00
+  },
+  "direction": "OUTGOING",
+  "entries": [
+    {
+      "transferId": "44fb1f15-36b8-49ac-84f4-956737d00e34",
+      "direction": "OUTGOING",
+      "counterpartyAccount": "AC200",
+      "amount": 50.00,
+      "status": "COMPLETED",
+      "createdAt": "2026-06-28T12:00:00.123456Z"
+    }
+  ],
+  "page": {
+    "number": 0,
+    "size": 20,
+    "totalElements": 2,
+    "totalPages": 1,
+    "first": true,
+    "last": true
+  }
+}
+```
+
+The account and summary are read in the same database transaction as the page,
+but clients that require a repeatable multi-request snapshot should use a future
+journal/export facility rather than walking pages while new transfers are being
+created.
+
 ## Errors
 
 Errors use `application/problem+json`. Validation errors also contain an
@@ -94,7 +150,7 @@ Example:
 
 | Status | Meaning |
 | --- | --- |
-| `400 Bad Request` | Invalid JSON, header, or field validation |
+| `400 Bad Request` | Invalid JSON, header, field, filter, or pagination value |
 | `404 Not Found` | Account or transfer does not exist |
 | `409 Conflict` | Key was previously committed for different business fields |
 | `422 Unprocessable Entity` | Insufficient funds or invalid business operation |
